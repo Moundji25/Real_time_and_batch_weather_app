@@ -1,0 +1,5 @@
+streamlit
+requests
+pandas
+confluent_kafka
+cassandra-driver

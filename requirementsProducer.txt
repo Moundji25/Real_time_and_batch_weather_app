@@ -1,0 +1,4 @@
+requests
+confluent_kafka
+pandas
+cassandra-driver
