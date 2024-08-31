@@ -1,0 +1,2 @@
+confluent_kafka
+cassandra-driver

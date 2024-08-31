@@ -1,0 +1,92 @@
+version: '3'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.0.0
+    hostname: zookeeper-projet-meteo
+    container_name: zookeeper-projet-meteo
+    ports:
+      - "32181:32181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 32181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-enterprise-kafka:6.0.0
+    hostname: kafka-projet-meteo
+    container_name: kafka-projet-meteo
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-projet-meteo:32181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-projet-meteo:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  cassandra:
+    image: cassandra:latest  # Use the latest official Cassandra image
+    hostname: cassandra
+    container_name: cassandra
+    environment:
+      - CASSANDRA_KEYSPACE=weather_data 
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    ports:
+      - "9042:9042"  # Default Cassandra port
+    #volumes:
+    #  - ./init.cql:/init.cql  # Mount the CQL file to the container
+    #command: > sh -c "cassandra -f && while ! cqlsh -f /init.cql; do sleep 5; done"
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    depends_on:
+      - cassandra
+      - kafka
+      - producer
+    environment:
+      - CASSANDRA_HOST=cassandra
+      #- KAFKA_BROKER=kafka:29092
+    volumes:
+      - ./Consumer_cassandra.py:/app/Consumer_cassandra.py
+
+  consumer_streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer_streamlit
+    ports:
+      - "8501:8501"
+    depends_on:
+      - cassandra
+      - kafka
+      - consumer
+    environment:
+      - CASSANDRA_HOST=cassandra
+      - KAFKA_BROKER=kafka:29092
+    volumes:
+      - ./streamlit_consumer.py:/app/streamlit_consumer.py
+
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile.producer
+    depends_on:
+      - kafka
+      - cassandra
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - CASSANDRA_HOST=cassandra
+    volumes:
+      - ./Producer.py:/app/Producer.py
+      
